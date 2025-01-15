@@ -47,7 +47,7 @@ function App() {
     e.preventDefault()
     try {
 
-      setState(prev => (
+      setState(() => (
         {
           ...state,
           response: ""
@@ -57,7 +57,8 @@ function App() {
         headers: {
           Authorization: state?.authorization || "",
           ...(state.header ? JSON.parse(state.header) : {})
-        }
+        },
+        data: state.body ? JSON.parse(state.body) : {}
       })
 
 
@@ -72,7 +73,7 @@ function App() {
     } catch (e) {
       toast.error("some error happened")
 
-      setState(prev => (
+      setState(() => (
         {
           ...state,
           response: JSON.stringify(e.response.data)
