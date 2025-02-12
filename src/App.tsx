@@ -3,12 +3,14 @@ import MonacoEditor from '@monaco-editor/react'
 import axios from "axios"
 import JsonToTS from "json-to-ts"
 import { Copy, Heart } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useLocalStorage } from "react-use"
 import { toast, Toaster } from 'sonner'
 import { Button } from './components/ui/button'
 import { Card } from "./components/ui/card"
 import { Input } from "./components/ui/input"
 import { Label } from "./components/ui/label"
+import { ScrollArea } from './components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select'
 
 
@@ -21,6 +23,10 @@ interface State {
   response: any
 }
 
+interface Last10Response extends State {
+  timestamp: string
+}
+
 function App() {
   const [state, setState] = useLocalStorage<State>("state", {
     url: "",
@@ -31,7 +37,9 @@ function App() {
     response: ""
   })
 
-  const [last10Responses, setLast10Responses] = useLocalStorage<State[]>("last10response", [])
+  const [last10Responses, setLast10Responses] = useState<Last10Response[]>(
+    localStorage.getItem("last10Responses") ? JSON.parse(localStorage.getItem("last10Responses")!) : []
+  )
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setState({
@@ -57,6 +65,7 @@ function App() {
           response: ""
         }
       ) as State)
+
       const response = await axios?.[state!.method]?.(state!.url, {
         headers: {
           Authorization: state?.authorization || "",
@@ -67,26 +76,30 @@ function App() {
 
 
       const generatedTypes = JsonToTS(response.data).join("\n");
-      const updatedResponse = state!.response + "\n" + generatedTypes;
+
       setState(() => (
         {
           ...state,
-          response: updatedResponse
+          response: generatedTypes
         }
       ) as State);
 
-      setLast10Responses(prev => [
-        ...prev,
-        {
-          method: state!.method,
-          url: state!.url,
-          response: updatedResponse
-        }
-      ])
-
+      setLast10Responses((prev) => {
+        return [
+          {
+            url: state?.url ?? '',
+            authorization: state?.authorization ?? '',
+            body: state?.body ?? '',
+            header: state?.header ?? '',
+            method: state?.method ?? 'get',
+            response: generatedTypes,
+            timestamp: new Date().toISOString()
+          },
+          ...prev
+        ].slice(0, 10)
+      })
     } catch (e) {
       toast.error("some error happened")
-
       setState(() => (
         {
           ...state,
@@ -95,11 +108,17 @@ function App() {
       ) as State)
     }
 
-
-
-
   }
 
+
+
+  useEffect(() => {
+
+    if (last10Responses.length > 0) {
+      localStorage.setItem("last10Responses", JSON.stringify(last10Responses))
+    }
+
+  }, [last10Responses])
 
 
 
@@ -127,7 +146,7 @@ function App() {
                       <SelectItem value="delete">DELETE</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Input required placeholder='endpoint' value={state!.url} name="url" onChange={onInputChange} className="border-2 bg-muted" />
+                  <Input required placeholder='endpoint' value={state!.url} name="url" onChange={onInputChange} className="bg-muted border-2" />
                 </div>
                 <Label>Body</Label>
                 <MonacoEditor
@@ -146,7 +165,7 @@ function App() {
               </div>
               <div>
                 <Label>Authorization</Label>
-                <Input value={state!.authorization} name="authorization" onChange={onInputChange} className="border-2 bg-muted" />
+                <Input value={state!.authorization} name="authorization" onChange={onInputChange} className="bg-muted border-2" />
                 <Label>Header</Label>
 
                 <MonacoEditor
@@ -190,10 +209,10 @@ function App() {
               />
             </div>
 
-            <div className='gap-5 grid'>
+            <ScrollArea className='gap-5 grid px-5 h-[900px]'>
               <Label>Last 10 Responses</Label>
               {last10Responses!.map((response, index) => (
-                <div key={index} className='relative'>
+                <div key={response.timestamp} className='relative'>
                   <Button
                     onClick={() => {
                       navigator.clipboard.writeText(response.response || "")
@@ -223,7 +242,7 @@ function App() {
                 </div>
 
               ))}
-            </div>
+            </ScrollArea>
           </div>
         </Card>
       </div>
